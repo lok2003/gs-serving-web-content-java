@@ -47,6 +47,13 @@ jobs:
           name: java-build-artifacts
           path: target
 
+      - name: Check downloaded files    # ← Add this to debug
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files:"
+          find . -name "*.jar"
+
       - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -55,6 +62,9 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "target/*.jar"
           target: "/home/ubuntu/app"
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
 
       - name: Run JAR on EC2
         uses: appleboy/ssh-action@v1
@@ -63,19 +73,19 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            #Stop existing app if running
+            # Stop existing app if running
             pkill -f "serving-web-content" || true
-
             sleep 2
 
-            cd /home/ubuntu/app/target
-            
-             # Run JAR dynamically (no hardcoded name)
-            JAR_FILE=$(ls *.jar | head -1)
-            echo "Starting $JAR_FILE ..."
-            nohup java -jar $JAR_FILE > app.log 2>&1 &
+            # Check what was copied
+            echo "Files in /home/ubuntu/app:"
+            find /home/ubuntu/app -name "*.jar"
 
-            # Verify it started
+            # Run JAR dynamically
+            JAR_FILE=$(find /home/ubuntu/app -name "*.jar" | head -1)
+            echo "Starting $JAR_FILE ..."
+            nohup java -jar $JAR_FILE > /home/ubuntu/app/app.log 2>&1 &
+
             sleep 3
             ps aux | grep java | grep -v grep
             echo "App started successfully!"
