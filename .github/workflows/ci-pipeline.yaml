@@ -72,23 +72,32 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          request_pty: true                    # ← Add this
           script: |
+            # Install Java if not installed
+            if ! command -v java &> /dev/null; then
+              sudo apt update
+              sudo apt install openjdk-17-jdk -y
+            fi
+
             # Stop existing app if running
             pkill -f "serving-web-content" || true
             sleep 2
 
-            # Check what was copied
+            # Check copied files
             echo "Files in /home/ubuntu/app:"
             find /home/ubuntu/app -name "*.jar"
 
             # Run JAR dynamically
             JAR_FILE=$(find /home/ubuntu/app -name "*.jar" | head -1)
             echo "Starting $JAR_FILE ..."
-            nohup java -jar $JAR_FILE > /home/ubuntu/app/app.log 2>&1 &
 
-            
-            
+            #  Fix: disown detaches process from SSH session
+            nohup java -jar $JAR_FILE > /home/ubuntu/app/app.log 2>&1 &
+            disown $!                         
+
             sleep 5
 
+            # Verify
             ps aux | grep java | grep -v grep
             echo "App started successfully!"
